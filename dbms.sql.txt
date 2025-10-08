@@ -1,0 +1,312 @@
+-- Database Creation
+CREATE DATABASE StudentManagementSystem;
+USE StudentManagementSystem;
+
+-- Admin Table
+CREATE TABLE admin (
+    admin_id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Faculty Table
+CREATE TABLE faculty (
+    faculty_id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    department VARCHAR(100) NOT NULL,
+    subject VARCHAR(100) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES admin(admin_id)
+);
+
+-- Student Table
+CREATE TABLE student (
+    student_id INT PRIMARY KEY AUTO_INCREMENT,
+    roll_number VARCHAR(20) UNIQUE NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    phone VARCHAR(15),
+    department VARCHAR(100) NOT NULL,
+    semester INT NOT NULL,
+    date_of_birth DATE,
+    address TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES admin(admin_id)
+);
+
+-- Faculty-Student Assignment Table (Admin assigns students to faculty)
+CREATE TABLE faculty_student_assignment (
+    assignment_id INT PRIMARY KEY AUTO_INCREMENT,
+    faculty_id INT NOT NULL,
+    student_id INT NOT NULL,
+    subject VARCHAR(100) NOT NULL,
+    assigned_by INT NOT NULL,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (faculty_id) REFERENCES faculty(faculty_id),
+    FOREIGN KEY (student_id) REFERENCES student(student_id),
+    FOREIGN KEY (assigned_by) REFERENCES admin(admin_id),
+    UNIQUE KEY unique_assignment (faculty_id, student_id, subject)
+);
+
+-- Marks Table
+CREATE TABLE marks (
+    mark_id INT PRIMARY KEY AUTO_INCREMENT,
+    student_id INT NOT NULL,
+    faculty_id INT NOT NULL,
+    subject VARCHAR(100) NOT NULL,
+    theory_marks DECIMAL(5,2) DEFAULT 0,
+    internal_marks DECIMAL(5,2) DEFAULT 0,
+    lab_marks DECIMAL(5,2) DEFAULT 0,
+    assignment_marks DECIMAL(5,2) DEFAULT 0,
+    total_marks DECIMAL(5,2) GENERATED ALWAYS AS (
+        theory_marks + internal_marks + lab_marks + assignment_marks
+    ) STORED,
+    semester INT NOT NULL,
+    academic_year YEAR NOT NULL,
+    updated_by INT NOT NULL,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student(student_id),
+    FOREIGN KEY (faculty_id) REFERENCES faculty(faculty_id),
+    FOREIGN KEY (updated_by) REFERENCES faculty(faculty_id),
+    UNIQUE KEY unique_marks (student_id, subject, semester, academic_year)
+);
+
+-- Audit Log Table
+CREATE TABLE audit_log (
+    log_id INT PRIMARY KEY AUTO_INCREMENT,
+    table_name VARCHAR(50) NOT NULL,
+    record_id INT NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    old_values JSON,
+    new_values JSON,
+    performed_by INT NOT NULL,
+    user_type ENUM('admin', 'faculty') NOT NULL,
+    performed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+-- Insert Admin
+INSERT INTO admin (username, password, email, full_name) VALUES
+('admin1', 'hashed_password_1', 'admin1@university.edu', 'John Admin'),
+('admin2', 'hashed_password_2', 'admin2@university.edu', 'Jane Admin');
+
+-- Insert Faculty
+INSERT INTO faculty (username, password, email, full_name, department, subject, created_by) VALUES
+('faculty_cs1', 'hashed_password_3', 'cs1@university.edu', 'Dr. Smith', 'Computer Science', 'Database Management', 1),
+('faculty_cs2', 'hashed_password_4', 'cs2@university.edu', 'Dr. Johnson', 'Computer Science', 'Data Structures', 1),
+('faculty_math1', 'hashed_password_5', 'math1@university.edu', 'Dr. Brown', 'Mathematics', 'Calculus', 2);
+
+-- Insert Students
+INSERT INTO student (roll_number, full_name, email, phone, department, semester, created_by) VALUES
+('CS2023001', 'Alice Johnson', 'alice@student.edu', '1234567890', 'Computer Science', 3, 1),
+('CS2023002', 'Bob Smith', 'bob@student.edu', '1234567891', 'Computer Science', 3, 1),
+('CS2023003', 'Carol Davis', 'carol@student.edu', '1234567892', 'Computer Science', 3, 1),
+('MATH2023001', 'David Wilson', 'david@student.edu', '1234567893', 'Mathematics', 2, 2);
+
+-- Assign Students to Faculty
+INSERT INTO faculty_student_assignment (faculty_id, student_id, subject, assigned_by) VALUES
+(1, 1, 'Database Management', 1),
+(1, 2, 'Database Management', 1),
+(1, 3, 'Database Management', 1),
+(2, 1, 'Data Structures', 1),
+(2, 2, 'Data Structures', 1);
+
+-- Insert Sample Marks
+INSERT INTO marks (student_id, faculty_id, subject, theory_marks, internal_marks, lab_marks, assignment_marks, semester, academic_year, updated_by) VALUES
+(1, 1, 'Database Management', 85, 18, 25, 45, 3, 2024, 1),
+(2, 1, 'Database Management', 78, 16, 22, 40, 3, 2024, 1),
+(1, 2, 'Data Structures', 82, 17, 24, 42, 3, 2024, 2);
+
+-- Procedure for Admin to assign students to faculty
+DELIMITER //
+CREATE PROCEDURE AssignStudentToFaculty(
+    IN p_faculty_id INT,
+    IN p_student_id INT,
+    IN p_subject VARCHAR(100),
+    IN p_admin_id INT
+)
+BEGIN
+    DECLARE student_dept VARCHAR(100);
+    DECLARE faculty_dept VARCHAR(100);
+    
+    -- Get student and faculty departments
+    SELECT department INTO student_dept FROM student WHERE student_id = p_student_id;
+    SELECT department INTO faculty_dept FROM faculty WHERE faculty_id = p_faculty_id;
+    
+    -- Check if departments match
+    IF student_dept = faculty_dept THEN
+        INSERT INTO faculty_student_assignment (faculty_id, student_id, subject, assigned_by)
+        VALUES (p_faculty_id, p_student_id, p_subject, p_admin_id);
+    ELSE
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Student and faculty must belong to same department';
+    END IF;
+END //
+DELIMITER ;
+
+-- Function to check if faculty can access student
+DELIMITER //
+CREATE FUNCTION CanFacultyAccessStudent(
+    p_faculty_id INT,
+    p_student_id INT,
+    p_subject VARCHAR(100)
+)
+RETURNS BOOLEAN
+READS SQL DATA
+DETERMINISTIC
+BEGIN
+    DECLARE has_access BOOLEAN DEFAULT FALSE;
+    
+    SELECT COUNT(*) > 0 INTO has_access
+    FROM faculty_student_assignment
+    WHERE faculty_id = p_faculty_id 
+    AND student_id = p_student_id 
+    AND subject = p_subject
+    AND is_active = TRUE;
+    
+    RETURN has_access;
+END //
+DELIMITER ;
+
+-- Procedure for faculty to update marks with access validation
+DELIMITER //
+CREATE PROCEDURE UpdateStudentMarks(
+    IN p_faculty_id INT,
+    IN p_student_id INT,
+    IN p_subject VARCHAR(100),
+    IN p_theory_marks DECIMAL(5,2),
+    IN p_internal_marks DECIMAL(5,2),
+    IN p_lab_marks DECIMAL(5,2),
+    IN p_assignment_marks DECIMAL(5,2),
+    IN p_semester INT,
+    IN p_academic_year YEAR
+)
+BEGIN
+    DECLARE access_allowed BOOLEAN;
+    
+    -- Check if faculty has access to this student for the subject
+    SET access_allowed = CanFacultyAccessStudent(p_faculty_id, p_student_id, p_subject);
+    
+    IF access_allowed THEN
+        INSERT INTO marks (student_id, faculty_id, subject, theory_marks, internal_marks, 
+                          lab_marks, assignment_marks, semester, academic_year, updated_by)
+        VALUES (p_student_id, p_faculty_id, p_subject, p_theory_marks, p_internal_marks,
+                p_lab_marks, p_assignment_marks, p_semester, p_academic_year, p_faculty_id)
+        ON DUPLICATE KEY UPDATE
+            theory_marks = VALUES(theory_marks),
+            internal_marks = VALUES(internal_marks),
+            lab_marks = VALUES(lab_marks),
+            assignment_marks = VALUES(assignment_marks),
+            updated_by = VALUES(updated_by),
+            last_updated = CURRENT_TIMESTAMP;
+    ELSE
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Faculty not authorized to update marks for this student';
+    END IF;
+END //
+DELIMITER ;
+
+-- View for faculty to see their assigned students
+CREATE VIEW faculty_assigned_students AS
+SELECT 
+    f.faculty_id,
+    f.full_name AS faculty_name,
+    s.student_id,
+    s.roll_number,
+    s.full_name AS student_name,
+    s.department,
+    s.semester,
+    fsa.subject,
+    fsa.assigned_at
+FROM faculty_student_assignment fsa
+JOIN faculty f ON fsa.faculty_id = f.faculty_id
+JOIN student s ON fsa.student_id = s.student_id
+WHERE fsa.is_active = TRUE;
+
+-- View for marks summary
+CREATE VIEW marks_summary AS
+SELECT 
+    m.student_id,
+    s.roll_number,
+    s.full_name AS student_name,
+    s.department,
+    s.semester,
+    m.subject,
+    m.theory_marks,
+    m.internal_marks,
+    m.lab_marks,
+    m.assignment_marks,
+    m.total_marks,
+    f.full_name AS faculty_name,
+    m.academic_year
+FROM marks m
+JOIN student s ON m.student_id = s.student_id
+JOIN faculty f ON m.faculty_id = f.faculty_id;
+
+-- 1. Get all students assigned to a specific faculty
+SELECT * FROM faculty_assigned_students WHERE faculty_id = 1;
+
+-- 2. Get marks for students assigned to a faculty
+SELECT ms.* 
+FROM marks_summary ms
+JOIN faculty_student_assignment fsa ON ms.student_id = fsa.student_id 
+    AND ms.subject = fsa.subject
+WHERE fsa.faculty_id = 1 AND fsa.is_active = TRUE;
+
+-- 3. Admin: Get all faculty with their assigned student count
+SELECT 
+    f.faculty_id,
+    f.full_name,
+    f.department,
+    f.subject,
+    COUNT(fsa.student_id) as assigned_students
+FROM faculty f
+LEFT JOIN faculty_student_assignment fsa ON f.faculty_id = fsa.faculty_id 
+    AND fsa.is_active = TRUE
+GROUP BY f.faculty_id;
+
+-- 4. Generate Excel-friendly report for faculty
+SELECT 
+    s.roll_number AS 'Roll Number',
+    s.full_name AS 'Student Name',
+    m.subject AS 'Subject',
+    m.theory_marks AS 'Theory Marks',
+    m.internal_marks AS 'Internal Marks',
+    m.lab_marks AS 'Lab Marks',
+    m.assignment_marks AS 'Assignment Marks',
+    m.total_marks AS 'Total Marks',
+    m.academic_year AS 'Academic Year'
+FROM marks m
+JOIN student s ON m.student_id = s.student_id
+WHERE m.faculty_id = 1
+ORDER BY s.roll_number, m.subject;
+
+-- 5. Audit log query
+SELECT 
+    performed_at AS 'Timestamp',
+    user_type AS 'User Type',
+    action AS 'Action',
+    table_name AS 'Table',
+    record_id AS 'Record ID'
+FROM audit_log
+ORDER BY performed_at DESC
+LIMIT 100;
+
+-- Create users with different privileges
+CREATE USER 'admin_user'@'localhost' IDENTIFIED BY 'admin_password';
+CREATE USER 'faculty_user'@'localhost' IDENTIFIED BY 'faculty_password';
+
+-- Grant admin privileges
+GRANT ALL PRIVILEGES ON StudentManagementSystem.* TO 'admin_user'@'localhost';
+
+-- Grant faculty privileges (read-only on most tables, limited write on marks)
+GRANT SELECT ON StudentManagementSystem.faculty_assigned_students TO 'faculty_user'@'localhost';
+GRANT SELECT ON StudentManagementSystem.marks_summary TO 'faculty_user'@'localhost';
+GRANT EXECUTE ON PROCEDURE StudentManagementSystem.UpdateStudentMarks TO 'faculty_user'@'localhost';
