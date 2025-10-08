@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Management System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .dashboard {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .hidden {
+            display: none;
+        }
+        .tab-container {
+            margin: 20px 0;
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .tab-button {
+            padding: 10px 20px;
+            border: none;
+            background: #007bff;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .tab-button.active {
+            background: #0056b3;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .logout-btn {
+            background: #dc3545;
+            float: right;
+        }
+        .logout-btn:hover {
+            background: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Section -->
+    <div id="loginSection" class="container">
+        <div class="login-container">
+            <h2>Student Management System</h2>
+            <div class="form-group">
+                <label>Role:</label>
+                <select id="roleSelect">
+                    <option value="admin">Admin</option>
+                    <option value="faculty">Faculty</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Username:</label>
+                <input type="text" id="username" placeholder="Enter username">
+            </div>
+            <div class="form-group">
+                <label>Password:</label>
+                <input type="password" id="password" placeholder="Enter password">
+            </div>
+            <button onclick="login()">Login</button>
+            <div id="loginMessage" style="margin-top: 10px; color: red;"></div>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="adminDashboard" class="container hidden">
+        <div class="dashboard">
+            <h2>Admin Dashboard <button class="logout-btn" onclick="logout()">Logout</button></h2>
+            
+            <div class="tab-container">
+                <div class="tab-buttons">
+                    <button class="tab-button active" onclick="showTab('facultyTab')">Manage Faculty</button>
+                    <button class="tab-button" onclick="showTab('studentsTab')">Manage Students</button>
+                    <button class="tab-button" onclick="showTab('assignTab')">Assign Students</button>
+                </div>
+
+                <!-- Faculty Management Tab -->
+                <div id="facultyTab" class="tab-content active">
+                    <h3>Faculty Management</h3>
+                    <button onclick="showAddFacultyForm()">Add New Faculty</button>
+                    
+                    <div id="addFacultyForm" class="hidden" style="margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 4px;">
+                        <h4>Add New Faculty</h4>
+                        <div class="form-group">
+                            <input type="text" id="facultyUsername" placeholder="Username">
+                        </div>
+                        <div class="form-group">
+                            <input type="password" id="facultyPassword" placeholder="Password">
+                        </div>
+                        <div class="form-group">
+                            <input type="email" id="facultyEmail" placeholder="Email">
+                        </div>
+                        <div class="form-group">
+                            <input type="text" id="facultyFullName" placeholder="Full Name">
+                        </div>
+                        <div class="form-group">
+                            <input type="text" id="facultyDepartment" placeholder="Department">
+                        </div>
+                        <div class="form-group">
+                            <input type="text" id="facultySubject" placeholder="Subject">
+                        </div>
+                        <button onclick="addFaculty()">Add Faculty</button>
+                        <button onclick="hideAddFacultyForm()">Cancel</button>
+                    </div>
+
+                    <table id="facultyTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Full Name</th>
+                                <th>Department</th>
+                                <th>Subject</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <!-- Students Management Tab -->
+                <div id="studentsTab" class="tab-content">
+                    <h3>Student Management</h3>
+                    <button onclick="showAddStudentForm()">Add New Student</button>
+                    
+                    <div id="addStudentForm" class="hidden" style="margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 4px;">
+                        <h4>Add New Student</h4>
+                        <div class="form-group">
+                            <input type="text" id="studentRollNumber" placeholder="Roll Number">
+                        </div>
+                        <div class="form-group">
+                            <input type="text" id="studentFullName" placeholder="Full Name">
+                        </div>
+                        <div class="form-group">
+                            <input type="email" id="studentEmail" placeholder="Email">
+                        </div>
+                        <div class="form-group">
+                            <input type="text" id="studentPhone" placeholder="Phone">
+                        </div>
+                        <div class="form-group">
+                            <input type="text" id="studentDepartment" placeholder="Department">
+                        </div>
+                        <div class="form-group">
+                            <input type="number" id="studentSemester" placeholder="Semester">
+                        </div>
+                        <button onclick="addStudent()">Add Student</button>
+                        <button onclick="hideAddStudentForm()">Cancel</button>
+                    </div>
+
+                    <table id="studentsTable">
+                        <thead>
+                            <tr>
+                                <th>Roll No</th>
+                                <th>Full Name</th>
+                                <th>Email</th>
+                                <th>Department</th>
+                                <th>Semester</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <!-- Assignment Tab -->
+                <div id="assignTab" class="tab-content">
+                    <h3>Assign Students to Faculty</h3>
+                    <div class="form-group">
+                        <select id="assignFacultySelect"></select>
+                    </div>
+                    <div class="form-group">
+                        <select id="assignStudentSelect"></select>
+                    </div>
+                    <div class="form-group">
+                        <input type="text" id="assignSubject" placeholder="Subject">
+                    </div>
+                    <button onclick="assignStudent()">Assign Student</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Faculty Dashboard -->
+    <div id="facultyDashboard" class="container hidden">
+        <div class="dashboard">
+            <h2>Faculty Dashboard <button class="logout-btn" onclick="logout()">Logout</button></h2>
+            
+            <div class="tab-container">
+                <div class="tab-buttons">
+                    <button class="tab-button active" onclick="showFacultyTab('assignedStudentsTab')">Assigned Students</button>
+                    <button class="tab-button" onclick="showFacultyTab('marksTab')">Manage Marks</button>
+                    <button class="tab-button" onclick="downloadExcelReport()">Download Excel Report</button>
+                </div>
+
+                <!-- Assigned Students Tab -->
+                <div id="assignedStudentsTab" class="tab-content active">
+                    <h3>My Assigned Students</h3>
+                    <table id="assignedStudentsTable">
+                        <thead>
+                            <tr>
+                                <th>Roll No</th>
+                                <th>Student Name</th>
+                                <th>Department</th>
+                                <th>Semester</th>
+                                <th>Subject</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <!-- Marks Management Tab -->
+                <div id="marksTab" class="tab-content">
+                    <h3>Manage Student Marks</h3>
+                    <div class="form-group">
+                        <select id="marksStudentSelect"></select>
+                    </div>
+                    <div class="form-group">
+                        <input type="text" id="marksSubject" placeholder="Subject">
+                    </div>
+                    <div class="form-group">
+                        <input type="number" id="theoryMarks" placeholder="Theory Marks (0-100)" min="0" max="100">
+                    </div>
+                    <div class="form-group">
+                        <input type="number" id="internalMarks" placeholder="Internal Marks (0-20)" min="0" max="20">
+                    </div>
+                    <div class="form-group">
+                        <input type="number" id="labMarks" placeholder="Lab Marks (0-30)" min="0" max="30">
+                    </div>
+                    <div class="form-group">
+                        <input type="number" id="assignmentMarks" placeholder="Assignment Marks (0-50)" min="0" max="50">
+                    </div>
+                    <div class="form-group">
+                        <input type="number" id="semester" placeholder="Semester">
+                    </div>
+                    <div class="form-group">
+                        <input type="number" id="academicYear" placeholder="Academic Year" value="2024">
+                    </div>
+                    <button onclick="updateMarks()">Update Marks</button>
+
+                    <h4 style="margin-top: 30px;">Current Marks</h4>
+                    <table id="marksTable">
+                        <thead>
+                            <tr>
+                                <th>Roll No</th>
+                                <th>Student Name</th>
+                                <th>Subject</th>
+                                <th>Theory</th>
+                                <th>Internal</th>
+                                <th>Lab</th>
+                                <th>Assignment</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
