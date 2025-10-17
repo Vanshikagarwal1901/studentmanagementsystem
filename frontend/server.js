@@ -102,6 +102,36 @@ app.get('/api/admin/faculty', authenticateToken, (req, res) => {
     });
 });
 
+// Admin: Get single faculty
+app.get('/api/admin/faculty/:id', authenticateToken, (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+
+    const facultyId = req.params.id;
+    const query = 'SELECT * FROM faculty WHERE faculty_id = ?';
+    db.query(query, [facultyId], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (results.length === 0) return res.status(404).json({ error: 'Faculty not found' });
+        res.json(results[0]);
+    });
+});
+
+// Admin: Update faculty
+app.put('/api/admin/faculty/:id', authenticateToken, (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+
+    const facultyId = req.params.id;
+    const { username, password, email, full_name, department, subject, is_active } = req.body;
+    const query = `
+        UPDATE faculty SET username = ?, password = ?, email = ?, full_name = ?, department = ?, subject = ?, is_active = ?
+        WHERE faculty_id = ?
+    `;
+    db.query(query, [username, password, email, full_name, department, subject, is_active ? 1 : 0, facultyId], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (results.affectedRows === 0) return res.status(404).json({ error: 'Faculty not found' });
+        res.json({ message: 'Faculty updated successfully' });
+    });
+});
+
 // Admin: Add new faculty
 app.post('/api/admin/faculty', authenticateToken, (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
@@ -126,6 +156,36 @@ app.get('/api/admin/students', authenticateToken, (req, res) => {
     db.query(query, (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results);
+    });
+});
+
+// Admin: Get single student
+app.get('/api/admin/students/:id', authenticateToken, (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+
+    const studentId = req.params.id;
+    const query = 'SELECT * FROM student WHERE student_id = ?';
+    db.query(query, [studentId], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (results.length === 0) return res.status(404).json({ error: 'Student not found' });
+        res.json(results[0]);
+    });
+});
+
+// Admin: Update student
+app.put('/api/admin/students/:id', authenticateToken, (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+
+    const studentId = req.params.id;
+    const { roll_number, full_name, email, phone, department, semester, date_of_birth, address, is_active } = req.body;
+    const query = `
+        UPDATE student SET roll_number = ?, full_name = ?, email = ?, phone = ?, department = ?, semester = ?, date_of_birth = ?, address = ?, is_active = ?
+        WHERE student_id = ?
+    `;
+    db.query(query, [roll_number, full_name, email, phone, department, semester, date_of_birth, address, is_active ? 1 : 0, studentId], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (results.affectedRows === 0) return res.status(404).json({ error: 'Student not found' });
+        res.json({ message: 'Student updated successfully' });
     });
 });
 
@@ -155,6 +215,95 @@ app.post('/api/admin/assign-student', authenticateToken, (req, res) => {
     db.query(query, [faculty_id, student_id, subject, req.user.id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: 'Student assigned to faculty successfully' });
+    });
+});
+
+// Admin: Delete faculty
+app.delete('/api/admin/faculty/:id', authenticateToken, (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+
+    const facultyId = req.params.id;
+
+    // Delete marks and assignments related to this faculty, then delete faculty in a transaction
+    db.beginTransaction(err => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const deleteMarks = 'DELETE FROM marks WHERE faculty_id = ?';
+        db.query(deleteMarks, [facultyId], (err1) => {
+            if (err1) return db.rollback(() => res.status(500).json({ error: err1.message }));
+
+            const deleteAssignments = 'DELETE FROM faculty_student_assignment WHERE faculty_id = ?';
+            db.query(deleteAssignments, [facultyId], (err2) => {
+                if (err2) return db.rollback(() => res.status(500).json({ error: err2.message }));
+
+                const deleteFaculty = 'DELETE FROM faculty WHERE faculty_id = ?';
+                db.query(deleteFaculty, [facultyId], (err3, results3) => {
+                    if (err3) return db.rollback(() => res.status(500).json({ error: err3.message }));
+                    if (results3.affectedRows === 0) return db.rollback(() => res.status(404).json({ error: 'Faculty not found' }));
+
+                    db.commit((errCommit) => {
+                        if (errCommit) return db.rollback(() => res.status(500).json({ error: errCommit.message }));
+                        res.json({ message: 'Faculty and related assignments/marks deleted successfully' });
+                    });
+                });
+            });
+        });
+    });
+});
+
+// Admin: Delete student
+app.delete('/api/admin/students/:id', authenticateToken, (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+
+    const studentId = req.params.id;
+
+    // Delete marks and assignments related to this student, then delete student in a transaction
+    db.beginTransaction(err => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const deleteMarks = 'DELETE FROM marks WHERE student_id = ?';
+        db.query(deleteMarks, [studentId], (err1) => {
+            if (err1) return db.rollback(() => res.status(500).json({ error: err1.message }));
+
+            const deleteAssignments = 'DELETE FROM faculty_student_assignment WHERE student_id = ?';
+            db.query(deleteAssignments, [studentId], (err2) => {
+                if (err2) return db.rollback(() => res.status(500).json({ error: err2.message }));
+
+                const deleteStudent = 'DELETE FROM student WHERE student_id = ?';
+                db.query(deleteStudent, [studentId], (err3, results3) => {
+                    if (err3) return db.rollback(() => res.status(500).json({ error: err3.message }));
+                    if (results3.affectedRows === 0) return db.rollback(() => res.status(404).json({ error: 'Student not found' }));
+
+                    db.commit((errCommit) => {
+                        if (errCommit) return db.rollback(() => res.status(500).json({ error: errCommit.message }));
+                        res.json({ message: 'Student and related assignments/marks deleted successfully' });
+                    });
+                });
+            });
+        });
+    });
+});
+
+// Admin: Get and Delete assignments
+app.get('/api/admin/assignments', authenticateToken, (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+
+    const query = 'SELECT * FROM faculty_student_assignment';
+    db.query(query, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+app.delete('/api/admin/assignments/:id', authenticateToken, (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Access denied' });
+
+    const assignmentId = req.params.id;
+    const query = 'DELETE FROM faculty_student_assignment WHERE assignment_id = ?';
+    db.query(query, [assignmentId], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (results.affectedRows === 0) return res.status(404).json({ error: 'Assignment not found' });
+        res.json({ message: 'Assignment deleted successfully' });
     });
 });
 
@@ -189,12 +338,16 @@ app.post('/api/faculty/marks', authenticateToken, (req, res) => {
 app.get('/api/faculty/marks', authenticateToken, (req, res) => {
     if (req.user.role !== 'faculty') return res.status(403).json({ error: 'Access denied' });
 
+    // Return detailed marks rows, include primary key mark_id so frontend can delete by id
     const query = `
-        SELECT ms.* 
-        FROM marks_summary ms
-        JOIN faculty_student_assignment fsa ON ms.student_id = fsa.student_id 
-            AND ms.subject = fsa.subject
+        SELECT m.mark_id, m.faculty_id, m.student_id, s.roll_number, s.full_name AS student_name,
+               m.subject, m.theory_marks, m.internal_marks, m.lab_marks, m.assignment_marks,
+               m.total_marks, m.academic_year, m.semester, m.last_updated
+        FROM marks m
+        JOIN student s ON m.student_id = s.student_id
+        JOIN faculty_student_assignment fsa ON m.student_id = fsa.student_id AND m.subject = fsa.subject
         WHERE fsa.faculty_id = ? AND fsa.is_active = TRUE
+        ORDER BY s.roll_number, m.subject, m.last_updated DESC
     `;
     db.query(query, [req.user.id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -259,3 +412,25 @@ const PORT = 5000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
+// Faculty: Delete marks (for a student-subject entry)
+app.delete('/api/faculty/marks/:id', authenticateToken, (req, res) => {
+    if (req.user.role !== 'faculty') return res.status(403).json({ error: 'Access denied' });
+
+    const markId = req.params.id;
+
+    // Ensure the marks belong to this faculty
+    const checkQuery = 'SELECT * FROM marks WHERE mark_id = ? AND faculty_id = ?';
+    db.query(checkQuery, [markId, req.user.id], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (results.length === 0) return res.status(404).json({ error: 'Marks not found or access denied' });
+
+        const deleteQuery = 'DELETE FROM marks WHERE mark_id = ?';
+        db.query(deleteQuery, [markId], (err2, delRes) => {
+            if (err2) return res.status(500).json({ error: err2.message });
+            res.json({ message: 'Marks deleted successfully' });
+        });
+    });
+});
+
+// (Performance endpoint removed)

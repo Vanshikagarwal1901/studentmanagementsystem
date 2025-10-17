@@ -106,9 +106,44 @@
         .logout-btn:hover {
             background: #c82333;
         }
+        /* Improved UI */
+        .message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 18px;
+            border-radius: 6px;
+            color: #fff;
+            display: none;
+            z-index: 9999;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .message.success { background: #28a745; }
+        .message.error { background: #dc3545; }
+
+        .spinner-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255,255,255,0.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9998;
+        }
+        .spinner { width: 48px; height: 48px; border: 6px solid #eee; border-top-color: #007bff; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Buttons */
+        .btn { padding: 8px 12px; border-radius: 4px; border: none; cursor: pointer; }
+        .btn.primary { background: #007bff; color: white; }
+        .btn.danger { background: #dc3545; color: white; }
+        .btn.small { padding: 6px 8px; font-size: 0.9rem; }
+        table tbody tr td .btn { margin-right: 6px; }
     </style>
 </head>
 <body>
+    <div id="message" class="message" role="status"></div>
+    <div id="spinner" class="spinner-overlay"><div class="spinner"></div></div>
     <!-- Login Section -->
     <div id="loginSection" class="container">
         <div class="login-container">
@@ -145,10 +180,20 @@
                     <button class="tab-button" onclick="showTab('assignTab')">Assign Students</button>
                 </div>
 
+                <!-- Admin summary cards -->
+                <div id="adminSummary" style="display:flex; gap:12px; margin:12px 0;">
+                    <div style="flex:1; padding:12px; background:#e9f7ef; border-radius:6px;">Faculties: <strong id="summaryFacultyCount">0</strong></div>
+                    <div style="flex:1; padding:12px; background:#eef7ff; border-radius:6px;">Students: <strong id="summaryStudentsCount">0</strong></div>
+                    <div style="flex:1; padding:12px; background:#fff4e6; border-radius:6px;">Assignments: <strong id="summaryAssignmentsCount">0</strong></div>
+                </div>
+
                 <!-- Faculty Management Tab -->
                 <div id="facultyTab" class="tab-content active">
                     <h3>Faculty Management</h3>
-                    <button onclick="showAddFacultyForm()">Add New Faculty</button>
+                    <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                        <button onclick="showAddFacultyForm()">Add New Faculty</button>
+                        <input id="searchFacultyInput" type="search" placeholder="Search faculty..." style="flex:1; padding:6px;" oninput="filterFaculty()" />
+                    </div>
                     
                     <div id="addFacultyForm" class="hidden" style="margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 4px;">
                         <h4>Add New Faculty</h4>
@@ -170,8 +215,8 @@
                         <div class="form-group">
                             <input type="text" id="facultySubject" placeholder="Subject">
                         </div>
-                        <button onclick="addFaculty()">Add Faculty</button>
-                        <button onclick="hideAddFacultyForm()">Cancel</button>
+                        <button id="facultySaveBtn" onclick="addFaculty()">Add Faculty</button>
+                        <button id="facultyCancelBtn" onclick="hideAddFacultyForm()">Cancel</button>
                     </div>
 
                     <table id="facultyTable">
@@ -192,7 +237,10 @@
                 <!-- Students Management Tab -->
                 <div id="studentsTab" class="tab-content">
                     <h3>Student Management</h3>
-                    <button onclick="showAddStudentForm()">Add New Student</button>
+                    <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                        <button onclick="showAddStudentForm()">Add New Student</button>
+                        <input id="searchStudentsInput" type="search" placeholder="Search students..." style="flex:1; padding:6px;" oninput="filterStudents()" />
+                    </div>
                     
                     <div id="addStudentForm" class="hidden" style="margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 4px;">
                         <h4>Add New Student</h4>
@@ -214,8 +262,8 @@
                         <div class="form-group">
                             <input type="number" id="studentSemester" placeholder="Semester">
                         </div>
-                        <button onclick="addStudent()">Add Student</button>
-                        <button onclick="hideAddStudentForm()">Cancel</button>
+                        <button id="studentSaveBtn" onclick="addStudent()">Add Student</button>
+                        <button id="studentCancelBtn" onclick="hideAddStudentForm()">Cancel</button>
                     </div>
 
                     <table id="studentsTable">
@@ -246,6 +294,38 @@
                         <input type="text" id="assignSubject" placeholder="Subject">
                     </div>
                     <button onclick="assignStudent()">Assign Student</button>
+                    <div style="display:flex; gap:8px; align-items:center; margin-top:20px; margin-bottom:8px;">
+                        <h4 style="margin:0;">Current Assignments</h4>
+                        <input id="searchAssignmentsInput" type="search" placeholder="Search assignments... (faculty/student/subject)" style="flex:1; padding:6px;" oninput="filterAssignments()" />
+                    </div>
+                    <table id="assignmentsTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Faculty ID</th>
+                                <th>Student ID</th>
+                                <th>Subject</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+
+                    <!-- Charts for Assignments Tab -->
+                    <div style="display:flex; gap:16px; margin-top:20px; align-items:stretch;">
+                        <div style="flex:1; background:#fff; padding:12px; border-radius:6px; display:flex; flex-direction:column;">
+                            <h4 style="margin:0 0 8px 0;">Assignments per Faculty</h4>
+                            <div style="flex:1; min-height:220px;">
+                                <canvas id="assignmentsPerFacultyChart" style="width:100%; height:100%; display:block;"></canvas>
+                            </div>
+                        </div>
+                        <div style="width:360px; background:#fff; padding:12px; border-radius:6px; display:flex; flex-direction:column; align-items:stretch;">
+                            <h4 style="margin:0 0 8px 0;">Students by Department</h4>
+                            <div style="flex:1; min-height:220px;">
+                                <canvas id="studentsByDeptChart" style="width:100%; height:100%; display:block;"></canvas>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -279,6 +359,8 @@
                         <tbody></tbody>
                     </table>
                 </div>
+
+                
 
                 <!-- Marks Management Tab -->
                 <div id="marksTab" class="tab-content">
@@ -321,6 +403,7 @@
                                 <th>Lab</th>
                                 <th>Assignment</th>
                                 <th>Total</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -330,6 +413,7 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
